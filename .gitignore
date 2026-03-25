@@ -1,0 +1,7 @@
+results/
+*.zip
+*.fna
+*.fa
+*.fasta
+__pycache__/
+*.pyc
