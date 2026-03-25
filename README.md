@@ -4,17 +4,24 @@ This repo is a **tutorial-first** scaffold for downloading large batches of DToL
 
 It is intentionally **tool-agnostic**: you plug in your own command and the runner applies it to each genome.
 
-## What you can do
+## Two modes
 
-- Download thousands of DToL assemblies in batches
-- Filter by clade or metadata (e.g., plants only)
-- Keep only chromosome-level assemblies
-- Resume after crashes
-- Run any command per genome (EDTA, RepeatModeler, k-mer tools, etc.)
+1. **Batch download → run tools later**
+2. **Streaming** (download one genome → run tool → delete → repeat)
 
-## Quick start
+## Quick start (streaming mode)
 
-### 1) Build taxonomy annotations (optional, for clade filters)
+This is the scalable approach for thousands of genomes.
+
+```bash
+python3 scripts/run_streaming_pipeline.py \
+  --tsv data/dtol_plants.tsv \
+  --workdir results/streaming_run \
+  --cmd "YOUR_TOOL --genome {fasta} --threads 8" \
+  --min-busco 95 --require-chromosome --resume --verbose
+```
+
+## 1) Build taxonomy annotations (optional, for clade filters)
 
 ```bash
 python3 scripts/build_taxonomy_from_tsv.py \
@@ -22,7 +29,7 @@ python3 scripts/build_taxonomy_from_tsv.py \
   --out data/dtol_with_taxonomy.tsv
 ```
 
-### 2) Filter by clade (e.g., plants)
+## 2) Filter by clade (e.g., plants)
 
 ```bash
 python3 scripts/filter_by_group.py \
@@ -31,7 +38,7 @@ python3 scripts/filter_by_group.py \
   --group plants
 ```
 
-### 3) Download genomes (NCBI Datasets API)
+## 3) Batch download (optional)
 
 ```bash
 python3 scripts/download_dtol_genomes.py \
@@ -47,7 +54,7 @@ This produces:
 - `results/genomes_plants/run_log.csv`
 - `results/genomes_plants/run_errors.csv`
 
-### 4) Run any tool per genome
+## 4) Run any tool per genome (batch mode)
 
 ```bash
 python3 scripts/run_generic_tool.py \
