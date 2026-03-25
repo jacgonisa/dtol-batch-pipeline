@@ -14,13 +14,29 @@ It is intentionally **tool-agnostic**: you plug in your own command and the runn
 
 ## Quick start
 
-### 1) Download genomes (NCBI Datasets API)
+### 1) Build taxonomy annotations (optional, for clade filters)
+
+```bash
+python3 scripts/build_taxonomy_from_tsv.py \
+  --tsv data/download_allgoatgenomehubs.tsv \
+  --out data/dtol_with_taxonomy.tsv
+```
+
+### 2) Filter by clade (e.g., plants)
+
+```bash
+python3 scripts/filter_by_group.py \
+  --tsv data/dtol_with_taxonomy.tsv \
+  --out data/dtol_plants.tsv \
+  --group plants
+```
+
+### 3) Download genomes (NCBI Datasets API)
 
 ```bash
 python3 scripts/download_dtol_genomes.py \
-  --tsv data/download_allgoatgenomehubs.tsv \
+  --tsv data/dtol_plants.tsv \
   --outdir results/genomes_plants \
-  --group plants \
   --min-busco 95 \
   --require-chromosome \
   --resume --verbose
@@ -31,7 +47,7 @@ This produces:
 - `results/genomes_plants/run_log.csv`
 - `results/genomes_plants/run_errors.csv`
 
-### 2) Run any tool per genome
+### 4) Run any tool per genome
 
 ```bash
 python3 scripts/run_generic_tool.py \
@@ -54,6 +70,7 @@ Required columns:
 
 Optional (for filtering):
 - `group` (e.g., plants)
+- `taxa1`, `taxa2`
 
 ## Tips
 
@@ -63,4 +80,4 @@ Optional (for filtering):
 
 ## License
 
-Add your preferred license.
+MIT
