@@ -20,6 +20,15 @@ import requests
 import pandas as pd
 
 TAXDUMP_URL = "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz"
+MANUAL_OVERRIDES = {
+    "Chrysotoxum festivum": {
+        "group": "eukaryote",
+        "taxa1": "Arthropoda",
+        "taxa2": "Diptera",
+        "genus": "Chrysotoxum",
+        "species": "Chrysotoxum festivum",
+    },
+}
 
 
 def download_taxdump(out_path: Path) -> None:
@@ -130,7 +139,17 @@ def main() -> None:
     genus = []
     species = []
 
-    for tax_id in df["taxon_id"].fillna(0).astype(int):
+    for _, row in df.iterrows():
+        scientific_name = row.get("scientific_name", "")
+        if scientific_name in MANUAL_OVERRIDES:
+            override = MANUAL_OVERRIDES[scientific_name]
+            groups.append(override["group"])
+            taxa1.append(override["taxa1"])
+            taxa2.append(override["taxa2"])
+            genus.append(override["genus"])
+            species.append(override["species"])
+            continue
+        tax_id = int(pd.to_numeric(row.get("taxon_id"), errors="coerce") or 0)
         if tax_id == 0:
             groups.append("")
             taxa1.append("")

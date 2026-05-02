@@ -7,11 +7,12 @@ Example:
   python3 scripts/run_streaming_pipeline.py \
     --tsv data/dtol_plants.tsv \
     --workdir results/streaming_run \
-    --cmd "EDTA.pl --genome {fasta} --threads 8" \
+    --cmd "EDTA.pl --genome {fasta} --threads 8 --outdir {outdir}" \
     --min-busco 95 --require-chromosome --resume --verbose
 """
 import argparse
 import os
+import re
 import sys
 import zipfile
 from pathlib import Path
@@ -63,13 +64,56 @@ def ensure_fasta_ext(fasta_path: Path, workdir: Path) -> Path:
         return target
 
 
+def iter_fasta_records(fasta_path: Path):
+    header = None
+    seq_lines = []
+    with open(fasta_path) as handle:
+        for line in handle:
+            if line.startswith(">"):
+                if header is not None:
+                    yield header, "".join(seq_lines)
+                header = line.rstrip()
+                seq_lines = []
+            else:
+                seq_lines.append(line.strip())
+    if header is not None:
+        yield header, "".join(seq_lines)
+
+
+def filter_chromosome_fasta(fasta_path: Path, workdir: Path, pattern: str) -> tuple[Path, int, int]:
+    regex = re.compile(pattern)
+    out_path = workdir / "genome.chromosomes.fasta"
+    total = 0
+    kept = 0
+    with open(out_path, "w") as out:
+        for header, seq in iter_fasta_records(fasta_path):
+            total += 1
+            if regex.search(header):
+                kept += 1
+                out.write(f"{header}\n")
+                for i in range(0, len(seq), 80):
+                    out.write(seq[i:i + 80] + "\n")
+    if kept == 0:
+        raise RuntimeError(f"No chromosome records matched pattern: {pattern}")
+    return out_path, total, kept
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--tsv", required=True)
     ap.add_argument("--workdir", required=True)
-    ap.add_argument("--cmd", required=True, help="Command template with {fasta}")
+    ap.add_argument(
+        "--cmd",
+        required=True,
+        help=(
+            "Command template. Supported placeholders: {fasta}, {outdir}, "
+            "{assembly_id}, {scientific_name}, {species_slug}, {taxon_id}"
+        ),
+    )
     ap.add_argument("--min-busco", type=float, default=95.0)
     ap.add_argument("--require-chromosome", action="store_true")
+    ap.add_argument("--chromosomes-only-fasta", action="store_true")
+    ap.add_argument("--chromosome-regex", default=r"(?i)chromosome|\\bchr\\b")
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--api-key", default="")
@@ -122,9 +166,27 @@ def main() -> None:
             if fasta is None:
                 raise RuntimeError("No FASTA found in download")
             fasta = ensure_fasta_ext(fasta, tmpdir)
+            total_records = ""
+            chromosome_records = ""
+            if args.chromosomes_only_fasta:
+                fasta, total_records, chromosome_records = filter_chromosome_fasta(
+                    fasta,
+                    tmpdir,
+                    args.chromosome_regex,
+                )
+
+            per_genome_outdir = workdir / "outputs" / safe
+            per_genome_outdir.mkdir(parents=True, exist_ok=True)
 
             # run command
-            cmd = args.cmd.format(fasta=str(fasta))
+            cmd = args.cmd.format(
+                fasta=str(fasta),
+                outdir=str(per_genome_outdir),
+                assembly_id=acc,
+                scientific_name=row.get("scientific_name") or "",
+                species_slug=safe,
+                taxon_id=row.get("taxon_id") or "",
+            )
             if args.verbose:
                 print(f"[{idx}/{total}] run {cmd}")
             import subprocess
@@ -147,6 +209,8 @@ def main() -> None:
             "download_status": status,
             "error": err,
             "chromosome_count": row.get("chromosome_count"),
+            "fasta_records_total": total_records,
+            "fasta_records_chromosome": chromosome_records,
             "busco_completeness": row.get("busco_completeness"),
             "assembly_level": row.get("assembly_level"),
             "assembly_span": row.get("assembly_span"),

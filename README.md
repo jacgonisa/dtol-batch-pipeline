@@ -17,7 +17,7 @@ This is the scalable approach for thousands of genomes.
 python3 scripts/run_streaming_pipeline.py \
   --tsv data/dtol_plants.tsv \
   --workdir results/streaming_run \
-  --cmd "YOUR_TOOL --genome {fasta} --threads 8" \
+  --cmd "YOUR_TOOL --genome {fasta} --threads 8 --outdir {outdir}" \
   --min-busco 95 --require-chromosome --resume --verbose
 ```
 
@@ -65,6 +65,61 @@ python3 scripts/run_generic_tool.py \
 ```
 
 Replace `YOUR_TOOL` with the command you want to run. The `{fasta}` placeholder is replaced by the genome file path.
+
+Available placeholders in `--cmd`:
+- `{fasta}`: FASTA path passed to the tool
+- `{outdir}`: per-genome output directory inside `WORKDIR/outputs/`
+- `{assembly_id}`: NCBI assembly accession
+- `{scientific_name}`: species name from the TSV
+- `{species_slug}`: species name converted into a filesystem-safe form
+- `{taxon_id}`: NCBI taxon ID
+
+## Chromosome-only FASTA mode
+
+`--require-chromosome` filters the TSV to chromosome-level assemblies, but those assemblies can still contain unplaced scaffolds.
+
+If you want the downstream tool to see only FASTA records whose headers look like chromosomes, add:
+
+```bash
+--chromosomes-only-fasta
+```
+
+By default this keeps records matching:
+
+```text
+(?i)chromosome|\bchr\b
+```
+
+You can override that with `--chromosome-regex`.
+
+## ANIANNS pattern
+
+If you want to stream DToL genomes through ANIANNS one by one, the pattern is:
+
+```bash
+python3 scripts/run_streaming_pipeline.py \
+  --tsv data/dtol_plants.tsv \
+  --workdir results/anianns_plants \
+  --min-busco 95 \
+  --require-chromosome \
+  --chromosomes-only-fasta \
+  --resume --verbose \
+  --cmd "bash -lc 'cd /path/to/anianns && YOUR_ANIANNS_COMMAND --input {fasta} --output {outdir}'"
+```
+
+
+python3 scripts/run_streaming_pipeline.py  --tsv data/download_allgoatgenomehubs.tsv  --workdir ../analysis/results/annianns --min-busco 95  --require-chromosome  --chromosomes-only-fasta  --resume --verbose  --cmd "bash -lc 'anianns annotate -f {fasta} -d {outdir}'"
+
+
+This does:
+- download one assembly
+- extract the genome FASTA
+- subset to chromosome-like records only
+- run your ANIANNS command on that one FASTA
+- keep outputs in `results/anianns_plants/outputs/<species>/`
+- delete the downloaded assembly and move to the next genome
+
+You need to replace `YOUR_ANIANNS_COMMAND` with the actual command used by your local ANIANNS checkout.
 
 ## Input TSV format
 
